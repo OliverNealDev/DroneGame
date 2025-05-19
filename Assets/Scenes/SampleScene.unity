@@ -625,14 +625,14 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   target: {fileID: 1104488285}
-  distance: 1.5
-  xSpeed: 600
-  ySpeed: 400
-  yMinLimit: 50
-  yMaxLimit: 400
-  zoomSpeed: 5
+  distance: 3.5
   minDistance: 1
   maxDistance: 5
+  xSpeed: 120
+  ySpeed: 120
+  yMinLimit: -80
+  yMaxLimit: 80
+  zoomSmoothTime: 0.1
 --- !u!1 &340927767
 GameObject:
   m_ObjectHideFlags: 0

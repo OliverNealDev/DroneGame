@@ -1,61 +1,127 @@
 using UnityEngine;
 
-public class cameraController : MonoBehaviour
+public class DroneCameraController : MonoBehaviour
 {
-    public Transform target;                       // The drone's transform.
-    public float distance = 10f;                     // Default distance from the target.
-    public float xSpeed = 120f;                      // Mouse sensitivity for horizontal movement.
-    public float ySpeed = 80f;                       // Mouse sensitivity for vertical movement.
-    public float yMinLimit = 10f;                    // Minimum vertical angle.
-    public float yMaxLimit = 80f;                    // Maximum vertical angle.
+    // The drone's transform to follow.
+    public Transform target;
 
-    // Zoom parameters.
-    public float zoomSpeed = 5f;
-    public float minDistance = 5f;
-    public float maxDistance = 20f;
+    // Distance to keep from the target.
+    public float distance = 5.0f;
+    // Minimum and maximum distance from the target.
+    public float minDistance = 2.0f;
+    public float maxDistance = 15.0f;
 
-    private float yaw = 0f;
-    private float pitch = 45f;                       // Default pitch is set to look slightly down from above.
+    // Mouse sensitivity for X and Y axes.
+    public float xSpeed = 120.0f;
+    public float ySpeed = 120.0f;
 
+    // Limits for vertical angle (Y-axis).
+    public float yMinLimit = -20f;
+    public float yMaxLimit = 80f;
+
+    // Smoothing for zoom.
+    public float zoomSmoothTime = 0.1f; // Smoothing only for zoom
+
+    // Current rotation angles.
+    private float x = 0.0f;
+    private float y = 0.0f;
+
+    // Current distance (for zooming).
+    private float currentDistance;
+    private float targetDistance;
+
+    // Velocity for zoom smoothing.
+    private float distanceVelocity;
+
+    // Initialization
     void Start()
     {
-        if (target == null)
-        {
-            Debug.LogWarning("Camera target not set.");
-            return;
-        }
+        // Get the initial Euler angles of the camera.
+        Vector3 angles = transform.eulerAngles;
+        x = angles.y;
+        y = angles.x;
 
-        // Lock the cursor and hide it.
+        // Set initial distances.
+        currentDistance = distance;
+        targetDistance = distance;
+
+        // Lock the cursor to the center of the game window and make it invisible.
         Cursor.lockState = CursorLockMode.Locked;
         Cursor.visible = false;
 
-        // Initialize angles based on starting offset.
-        Vector3 angles = transform.eulerAngles;
-        yaw = angles.y;
-        pitch = Mathf.Clamp(pitch, yMinLimit, yMaxLimit);
+        // Make sure there is a target.
+        if (!target)
+        {
+            Debug.LogWarning("Camera Controller: No target assigned. Please assign a target in the Inspector.");
+            // Optionally, create a dummy target to avoid null reference errors.
+            GameObject dummyTarget = new GameObject("CameraTarget_Dummy");
+            target = dummyTarget.transform;
+        }
     }
 
+    // Called after all Update functions have been called.
+    // This is good for camera updates, as it ensures the target has moved before the camera updates.
     void LateUpdate()
     {
-        if (target == null)
+        // If no target, do nothing.
+        if (!target)
             return;
 
-        // Handle zoom input using the scroll wheel.
-        float scrollInput = Input.GetAxis("Mouse ScrollWheel");
-        distance -= scrollInput * zoomSpeed;
-        distance = Mathf.Clamp(distance, minDistance, maxDistance);
+        // Get mouse input for rotation.
+        // The '-' sign for y is because mouse Y movement is often inverted for camera controls.
+        x += Input.GetAxis("Mouse X") * xSpeed * 0.02f;
+        y -= Input.GetAxis("Mouse Y") * ySpeed * 0.02f;
 
-        // Always use mouse movement for rotation.
-        yaw += Input.GetAxis("Mouse X") * xSpeed * Time.deltaTime;
-        pitch += Input.GetAxis("Mouse Y") * ySpeed * Time.deltaTime;
-        pitch = Mathf.Clamp(pitch, yMinLimit, yMaxLimit);
+        // Clamp the vertical angle.
+        y = ClampAngle(y, yMinLimit, yMaxLimit);
 
-        Quaternion rotation = Quaternion.Euler(pitch, yaw, 0);
-        Vector3 negDistance = new Vector3(0.0f, 0.0f, -distance);
-        Vector3 position = rotation * negDistance + target.position;
+        // Calculate the desired rotation based on mouse input.
+        Quaternion rotation = Quaternion.Euler(y, x, 0);
 
-        transform.position = position;
-        // Use a constant up vector to avoid inversion.
-        transform.LookAt(target.position, Vector3.up);
+        // Handle zooming with the mouse scroll wheel.
+        float scroll = Input.GetAxis("Mouse ScrollWheel");
+        targetDistance -= scroll * 5; // Adjust scroll speed as needed
+        targetDistance = Mathf.Clamp(targetDistance, minDistance, maxDistance);
+
+        // Smoothly adjust the current distance towards the target distance.
+        currentDistance = Mathf.SmoothDamp(currentDistance, targetDistance, ref distanceVelocity, zoomSmoothTime);
+
+        // Calculate the desired camera position.
+        // The camera is positioned 'currentDistance' units behind the target, rotated by 'rotation'.
+        Vector3 negDistance = new Vector3(0.0f, 0.0f, -currentDistance);
+        Vector3 desiredPosition = rotation * negDistance + target.position;
+
+        // Directly set the camera's position and rotation for immediate feedback.
+        transform.rotation = rotation;
+        transform.position = desiredPosition;
+
+        // Make the camera look at the target (this is now implicitly handled by setting rotation and position based on the target).
+        // However, if you want to ensure it *always* looks directly at the target's center, even if the pivot is slightly off,
+        // you can uncomment the line below. But with the current setup, it should align correctly.
+        // transform.LookAt(target);
+
+
+        // Allow cursor unlocking with the Escape key (optional).
+        if (Input.GetKeyDown(KeyCode.Escape))
+        {
+            Cursor.lockState = CursorLockMode.None;
+            Cursor.visible = true;
+        }
+        // Allow cursor re-locking by clicking the game window (optional).
+        if (Input.GetMouseButtonDown(0) && Cursor.lockState == CursorLockMode.None)
+        {
+             Cursor.lockState = CursorLockMode.Locked;
+             Cursor.visible = false;
+        }
+    }
+
+    // Helper function to clamp an angle between a min and max value.
+    public static float ClampAngle(float angle, float min, float max)
+    {
+        if (angle < -360F)
+            angle += 360F;
+        if (angle > 360F)
+            angle -= 360F;
+        return Mathf.Clamp(angle, min, max);
     }
 }
